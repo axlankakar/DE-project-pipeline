@@ -1,5 +1,12 @@
--- Create database if it doesn't exist
-CREATE DATABASE IF NOT EXISTS stockdata;
+\c postgres;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = 'stockdata') THEN
+        CREATE DATABASE stockdata;
+    END IF;
+END
+$$;
 
 \c stockdata;
 
