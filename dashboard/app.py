@@ -3,9 +3,11 @@ from dash import dcc, html
 from dash.dependencies import Input, Output
 import plotly.graph_objs as go
 import pandas as pd
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from datetime import datetime, timedelta
 import os
+import time
+from sqlalchemy.exc import OperationalError
 
 # Initialize the Dash app
 app = dash.Dash(__name__)
@@ -17,12 +19,40 @@ DB_HOST = os.getenv('POSTGRES_HOST', 'postgres')
 DB_PORT = os.getenv('POSTGRES_PORT', '5432')
 DB_NAME = os.getenv('POSTGRES_DB', 'stockdata')
 
+print(f"Attempting to connect to database: postgresql://{DB_USER}:***@{DB_HOST}:{DB_PORT}/{DB_NAME}")
+
+# Create database connection with retry logic
+def get_db_engine(max_retries=5, retry_interval=5):
+    for attempt in range(max_retries):
+        try:
+            engine = create_engine(f'postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}')
+            # Test the connection
+            with engine.connect() as conn:
+                conn.execute(text("SELECT 1"))
+            print(f"Successfully connected to database {DB_NAME}")
+            return engine
+        except OperationalError as e:
+            print(f"Database connection attempt {attempt + 1} failed: {str(e)}")
+            if attempt < max_retries - 1:
+                print(f"Retrying in {retry_interval} seconds...")
+                time.sleep(retry_interval)
+            else:
+                print(f"Failed to connect to database after {max_retries} attempts")
+                raise e
+
 # Create database connection
-engine = create_engine(f'postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}')
+try:
+    engine = get_db_engine()
+except Exception as e:
+    print(f"Failed to connect to database: {str(e)}")
+    engine = None
 
 # Layout
 app.layout = html.Div([
     html.H1('Stock Market Dashboard'),
+    
+    # Connection status
+    html.Div(id='connection-status'),
     
     # Stock selector dropdown
     html.Div([
@@ -67,7 +97,8 @@ app.layout = html.Div([
 ])
 
 @app.callback(
-    [Output('price-graph', 'figure'),
+    [Output('connection-status', 'children'),
+     Output('price-graph', 'figure'),
      Output('volume-graph', 'figure'),
      Output('change-graph', 'figure')],
     [Input('stock-selector', 'value'),
@@ -75,71 +106,85 @@ app.layout = html.Div([
      Input('interval-component', 'n_intervals')]
 )
 def update_graphs(selected_stock, time_range, n):
-    # Calculate time range
-    now = datetime.now()
-    if time_range == '1H':
-        start_time = now - timedelta(hours=1)
-    elif time_range == '4H':
-        start_time = now - timedelta(hours=4)
-    else:  # 1D
-        start_time = now - timedelta(days=1)
-    
-    # Query data from PostgreSQL
-    query = f"""
-    SELECT window_start as timestamp, avg_price, avg_volume, avg_change
-    FROM stock_metrics
-    WHERE symbol = '{selected_stock}'
-    AND window_start >= '{start_time}'
-    ORDER BY window_start
-    """
-    df = pd.read_sql(query, engine)
-    
-    # Create price figure
-    price_fig = go.Figure()
-    price_fig.add_trace(go.Scatter(
-        x=df['timestamp'],
-        y=df['avg_price'],
-        mode='lines',
-        name='Price'
-    ))
-    price_fig.update_layout(
-        title=f'{selected_stock} Price',
-        xaxis_title='Time',
-        yaxis_title='Price ($)'
-    )
-    
-    # Create volume figure
-    volume_fig = go.Figure()
-    volume_fig.add_trace(go.Bar(
-        x=df['timestamp'],
-        y=df['avg_volume'],
-        name='Volume'
-    ))
-    volume_fig.update_layout(
-        title=f'{selected_stock} Volume',
-        xaxis_title='Time',
-        yaxis_title='Volume'
-    )
-    
-    # Create change percent figure
-    change_fig = go.Figure()
-    change_fig.add_trace(go.Scatter(
-        x=df['timestamp'],
-        y=df['avg_change'],
-        mode='lines',
-        name='Change %',
-        line=dict(
-            color='green',
-            width=2
+    if engine is None:
+        return "Database connection failed!", {}, {}, {}
+        
+    try:
+        # Calculate time range
+        now = datetime.now()
+        if time_range == '1H':
+            start_time = now - timedelta(hours=1)
+        elif time_range == '4H':
+            start_time = now - timedelta(hours=4)
+        else:  # 1D
+            start_time = now - timedelta(days=1)
+        
+        # Query data from PostgreSQL
+        query = f"""
+        SELECT window_start as timestamp, avg_price, avg_volume, avg_change
+        FROM stock_metrics
+        WHERE symbol = :symbol
+        AND window_start >= :start_time
+        ORDER BY window_start
+        """
+        df = pd.read_sql_query(
+            text(query),
+            engine,
+            params={'symbol': selected_stock, 'start_time': start_time}
         )
-    ))
-    change_fig.update_layout(
-        title=f'{selected_stock} Price Change %',
-        xaxis_title='Time',
-        yaxis_title='Change %'
-    )
-    
-    return price_fig, volume_fig, change_fig
+        
+        if df.empty:
+            return f"No data available for {selected_stock}", {}, {}, {}
+        
+        # Create price figure
+        price_fig = go.Figure()
+        price_fig.add_trace(go.Scatter(
+            x=df['timestamp'],
+            y=df['avg_price'],
+            mode='lines',
+            name='Price'
+        ))
+        price_fig.update_layout(
+            title=f'{selected_stock} Price',
+            xaxis_title='Time',
+            yaxis_title='Price ($)'
+        )
+        
+        # Create volume figure
+        volume_fig = go.Figure()
+        volume_fig.add_trace(go.Bar(
+            x=df['timestamp'],
+            y=df['avg_volume'],
+            name='Volume'
+        ))
+        volume_fig.update_layout(
+            title=f'{selected_stock} Volume',
+            xaxis_title='Time',
+            yaxis_title='Volume'
+        )
+        
+        # Create change percent figure
+        change_fig = go.Figure()
+        change_fig.add_trace(go.Scatter(
+            x=df['timestamp'],
+            y=df['avg_change'],
+            mode='lines',
+            name='Change %',
+            line=dict(
+                color='green',
+                width=2
+            )
+        ))
+        change_fig.update_layout(
+            title=f'{selected_stock} Price Change %',
+            xaxis_title='Time',
+            yaxis_title='Change %'
+        )
+        
+        return f"Connected to database, showing data for {selected_stock}", price_fig, volume_fig, change_fig
+    except Exception as e:
+        print(f"Error updating graphs: {str(e)}")
+        return f"Error: {str(e)}", {}, {}, {}
 
 if __name__ == '__main__':
     app.run_server(host='0.0.0.0', port=8050, debug=True) 
