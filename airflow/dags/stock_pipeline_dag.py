@@ -1,6 +1,6 @@
 from airflow import DAG
-from airflow.operators.python_operator import PythonOperator
-from airflow.operators.bash_operator import BashOperator
+from airflow.operators.python import PythonOperator
+from airflow.operators.bash import BashOperator
 from airflow.providers.apache.spark.operators.spark_submit import SparkSubmitOperator
 from datetime import datetime, timedelta
 
@@ -25,21 +25,21 @@ dag = DAG(
 # Task to ensure Kafka topic exists
 ensure_kafka_topic = BashOperator(
     task_id='ensure_kafka_topic',
-    bash_command='kafka-topics.sh --create --if-not-exists --topic stock_data --bootstrap-server kafka:9092 --partitions 1 --replication-factor 1',
+    bash_command='/opt/kafka/bin/kafka-topics.sh --create --if-not-exists --topic stock_data --bootstrap-server kafka:9092 --partitions 1 --replication-factor 1',
     dag=dag
 )
 
 # Task to start the stock data generator
 start_data_generator = BashOperator(
     task_id='start_data_generator',
-    bash_command='python /data_generator/stock_generator.py',
+    bash_command='python /opt/airflow/data_generator/stock_generator.py',
     dag=dag
 )
 
 # Task to process data with Spark
 process_stock_data = SparkSubmitOperator(
     task_id='process_stock_data',
-    application='/spark/stock_processor.py',
+    application='/opt/airflow/spark/stock_processor.py',
     name='stock_data_processor',
     conn_id='spark_default',
     verbose=False,
