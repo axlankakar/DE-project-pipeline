@@ -118,7 +118,7 @@ services:
       context: .
       dockerfile: docker/dashboard.Dockerfile
     ports:
-      - "8050:8050"
+      - "8060:8050"
     environment:
       - POSTGRES_USER=airflow
       - POSTGRES_PASSWORD=airflow
