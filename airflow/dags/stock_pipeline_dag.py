@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 default_args = {
     'owner': 'airflow',
     'depends_on_past': False,
-    'start_date': datetime(2025, 5, 15),
+    'start_date': datetime(2024, 3, 19),
     'email_on_failure': False,
     'email_on_retry': False,
     'retries': 1,
@@ -32,14 +32,14 @@ ensure_kafka_topic = BashOperator(
 # Task to start the stock data generator
 start_data_generator = BashOperator(
     task_id='start_data_generator',
-    bash_command='python /opt/airflow/dags/data_generator/stock_generator.py',
+    bash_command='python /data_generator/stock_generator.py',
     dag=dag
 )
 
 # Task to process data with Spark
 process_stock_data = SparkSubmitOperator(
     task_id='process_stock_data',
-    application='/opt/airflow/dags/spark/stock_processor.py',
+    application='/spark/stock_processor.py',
     name='stock_data_processor',
     conn_id='spark_default',
     verbose=False,
