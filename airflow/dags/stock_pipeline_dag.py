@@ -1,7 +1,6 @@
 from airflow import DAG
 from airflow.operators.python import PythonOperator
 from airflow.operators.bash import BashOperator
-from airflow.providers.apache.spark.operators.spark_submit import SparkSubmitOperator
 from datetime import datetime, timedelta
 
 default_args = {
@@ -37,12 +36,9 @@ start_data_generator = BashOperator(
 )
 
 # Task to process data with Spark
-process_stock_data = SparkSubmitOperator(
+process_stock_data = BashOperator(
     task_id='process_stock_data',
-    application='/opt/airflow/spark/stock_processor.py',
-    name='stock_data_processor',
-    conn_id='spark_default',
-    verbose=False,
+    bash_command='spark-submit /opt/airflow/spark/stock_processor.py',
     dag=dag
 )
 
