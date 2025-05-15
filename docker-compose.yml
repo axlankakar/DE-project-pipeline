@@ -48,12 +48,14 @@ services:
 
   airflow-webserver:
     image: apache/airflow:2.7.1
-    command: webserver
+    command: bash -c "mkdir -p /opt/airflow/logs/scheduler && chown -R airflow:airflow /opt/airflow/logs && airflow webserver"
+    user: "0:0"  # Run as root initially to set permissions
     ports:
       - "8081:8080"
     environment:
       - AIRFLOW__CORE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
       - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+      - AIRFLOW__WEBSERVER__SECRET_KEY=your_secret_key_here
     volumes:
       - ./airflow/dags:/opt/airflow/dags
       - ./airflow/logs:/opt/airflow/logs
@@ -62,7 +64,8 @@ services:
 
   airflow-scheduler:
     image: apache/airflow:2.7.1
-    command: scheduler
+    command: bash -c "mkdir -p /opt/airflow/logs/scheduler && chown -R airflow:airflow /opt/airflow/logs && airflow scheduler"
+    user: "0:0"  # Run as root initially to set permissions
     environment:
       - AIRFLOW__CORE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
       - AIRFLOW__CORE__EXECUTOR=LocalExecutor
