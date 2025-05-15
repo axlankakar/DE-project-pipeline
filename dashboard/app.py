@@ -20,26 +20,9 @@ app = dash.Dash(__name__,
     ]
 )
 
-# Enable the app to be embedded in an iframe
-app.index_string = '''
-<!DOCTYPE html>
-<html>
-    <head>
-        {%metas%}
-        <title>{%title%}</title>
-        {%favicon%}
-        {%css%}
-    </head>
-    <body>
-        {%app_entry%}
-        <footer>
-            {%config%}
-            {%scripts%}
-            {%renderer%}
-        </footer>
-    </body>
-</html>
-'''
+# Enable the app to be embedded in an iframe and expose server for gunicorn
+app.enable_dev_tools(debug=False)
+server = app.server  # Expose Flask server for gunicorn
 
 # Get database connection details from environment variables
 DB_USER = os.getenv('POSTGRES_USER', 'airflow')
@@ -245,8 +228,5 @@ if __name__ == '__main__':
     app.run_server(
         host='0.0.0.0',
         port=8050,
-        debug=False,  # Disable debug mode in production
-        use_reloader=False,
-        dev_tools_hot_reload=False,
-        proxy=None  # Disable proxy settings
+        debug=False
     ) 
