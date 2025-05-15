@@ -1,7 +1,13 @@
+-- Create database if it doesn't exist
+CREATE DATABASE IF NOT EXISTS stockdata;
+
+\c stockdata;
+
 -- Create the stock_metrics table
 CREATE TABLE IF NOT EXISTS stock_metrics (
     id SERIAL PRIMARY KEY,
-    window STRUCT<start: TIMESTAMP, end: TIMESTAMP>,
+    window_start TIMESTAMP,
+    window_end TIMESTAMP,
     symbol VARCHAR(10) NOT NULL,
     avg_price DECIMAL(10, 2) NOT NULL,
     avg_volume INTEGER NOT NULL,
@@ -11,7 +17,7 @@ CREATE TABLE IF NOT EXISTS stock_metrics (
 
 -- Create indexes for better query performance
 CREATE INDEX IF NOT EXISTS idx_stock_metrics_symbol ON stock_metrics(symbol);
-CREATE INDEX IF NOT EXISTS idx_stock_metrics_window ON stock_metrics((window).start);
+CREATE INDEX IF NOT EXISTS idx_stock_metrics_window_start ON stock_metrics(window_start);
 
 -- Create a view for the latest metrics
 CREATE OR REPLACE VIEW latest_stock_metrics AS
@@ -20,6 +26,6 @@ SELECT DISTINCT ON (symbol)
     avg_price,
     avg_volume,
     avg_change,
-    (window).start as timestamp
+    window_start as timestamp
 FROM stock_metrics
-ORDER BY symbol, (window).start DESC; 
+ORDER BY symbol, window_start DESC; 
