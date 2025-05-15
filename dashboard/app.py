@@ -5,12 +5,20 @@ import plotly.graph_objs as go
 import pandas as pd
 from sqlalchemy import create_engine
 from datetime import datetime, timedelta
+import os
 
 # Initialize the Dash app
 app = dash.Dash(__name__)
 
+# Get database connection details from environment variables
+DB_USER = os.getenv('POSTGRES_USER', 'airflow')
+DB_PASSWORD = os.getenv('POSTGRES_PASSWORD', 'airflow')
+DB_HOST = os.getenv('POSTGRES_HOST', 'postgres')
+DB_PORT = os.getenv('POSTGRES_PORT', '5432')
+DB_NAME = os.getenv('POSTGRES_DB', 'stockdata')
+
 # Create database connection
-engine = create_engine('postgresql://airflow:airflow@postgres:5432/stockdata')
+engine = create_engine(f'postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}')
 
 # Layout
 app.layout = html.Div([
@@ -78,11 +86,11 @@ def update_graphs(selected_stock, time_range, n):
     
     # Query data from PostgreSQL
     query = f"""
-    SELECT window.start as timestamp, avg_price, avg_volume, avg_change
+    SELECT window_start as timestamp, avg_price, avg_volume, avg_change
     FROM stock_metrics
     WHERE symbol = '{selected_stock}'
-    AND window.start >= '{start_time}'
-    ORDER BY window.start
+    AND window_start >= '{start_time}'
+    ORDER BY window_start
     """
     df = pd.read_sql(query, engine)
     
