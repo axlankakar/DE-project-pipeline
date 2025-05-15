@@ -11,7 +11,7 @@ STOCKS = [
 ]
 
 class StockDataGenerator:
-    def __init__(self, kafka_bootstrap_servers='localhost:9092'):
+    def __init__(self, kafka_bootstrap_servers='kafka:9092'):
         self.producer = KafkaProducer(
             bootstrap_servers=kafka_bootstrap_servers,
             value_serializer=lambda x: json.dumps(x).encode('utf-8')
