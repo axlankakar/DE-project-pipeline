@@ -40,20 +40,31 @@ services:
     environment:
       POSTGRES_USER: airflow
       POSTGRES_PASSWORD: airflow
-      POSTGRES_DB: stockdata
+      POSTGRES_DB: airflow
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    command: >
+      bash -c "
+        echo 'Creating databases...' &&
+        psql -U airflow -c 'CREATE DATABASE stockdata;' &&
+        psql -U airflow -c 'GRANT ALL PRIVILEGES ON DATABASE stockdata TO airflow;'"
 
   airflow-webserver:
     image: apache/airflow:2.7.1
-    command: bash -c "mkdir -p /opt/airflow/logs/scheduler && chown -R airflow:airflow /opt/airflow/logs && airflow webserver"
+    command: bash -c "
+      mkdir -p /opt/airflow/logs/scheduler &&
+      chown -R airflow:airflow /opt/airflow/logs &&
+      airflow db init &&
+      airflow users create --username admin --password admin --firstname Admin --lastname User --role Admin --email admin@example.com &&
+      airflow webserver
+      "
     user: "0:0"  # Run as root initially to set permissions
     ports:
       - "8081:8080"
     environment:
-      - AIRFLOW__CORE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
       - AIRFLOW__CORE__EXECUTOR=LocalExecutor
       - AIRFLOW__WEBSERVER__SECRET_KEY=your_secret_key_here
     volumes:
@@ -67,7 +78,7 @@ services:
     command: bash -c "mkdir -p /opt/airflow/logs/scheduler && chown -R airflow:airflow /opt/airflow/logs && airflow scheduler"
     user: "0:0"  # Run as root initially to set permissions
     environment:
-      - AIRFLOW__CORE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
       - AIRFLOW__CORE__EXECUTOR=LocalExecutor
     volumes:
       - ./airflow/dags:/opt/airflow/dags
