@@ -1,6 +1,6 @@
 import dash
 from dash import dcc, html
-from dash.dependencies import Input, Output
+from dash.dependencies import Input, Output, State
 import plotly.graph_objs as go
 import pandas as pd
 from sqlalchemy import create_engine, text
@@ -9,8 +9,12 @@ import os
 import time
 from sqlalchemy.exc import OperationalError
 
-# Initialize the Dash app
-app = dash.Dash(__name__)
+# Initialize the Dash app with a modern theme
+app = dash.Dash(__name__, 
+    external_stylesheets=[
+        'https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500&display=swap'
+    ]
+)
 
 # Get database connection details from environment variables
 DB_USER = os.getenv('POSTGRES_USER', 'airflow')
@@ -47,46 +51,68 @@ except Exception as e:
     print(f"Failed to connect to database: {str(e)}")
     engine = None
 
+# Styles
+COLORS = {
+    'background': '#F8F9FA',
+    'text': '#212529',
+    'primary': '#007BFF',
+    'success': '#28A745',
+    'danger': '#DC3545'
+}
+
 # Layout
 app.layout = html.Div([
-    html.H1('Stock Market Dashboard'),
-    
-    # Connection status
-    html.Div(id='connection-status'),
-    
-    # Stock selector dropdown
+    # Header
     html.Div([
-        html.Label('Select Stock:'),
-        dcc.Dropdown(
-            id='stock-selector',
-            options=[
-                {'label': stock, 'value': stock} for stock in 
-                ['AAPL', 'GOOGL', 'MSFT', 'AMZN', 'META', 'TSLA', 'NVDA', 'NFLX', 'AMD', 'INTC']
-            ],
-            value='AAPL'
-        )
-    ]),
+        html.H1('Stock Market Dashboard', 
+                style={'color': COLORS['text'], 'textAlign': 'center', 'marginBottom': '20px'}),
+        html.Div(id='connection-status', 
+                 style={'textAlign': 'center', 'marginBottom': '20px'})
+    ], style={'padding': '20px', 'backgroundColor': COLORS['background']}),
     
-    # Time range selector
+    # Controls
     html.Div([
-        html.Label('Select Time Range:'),
-        dcc.RadioItems(
-            id='time-range',
-            options=[
-                {'label': '1 Hour', 'value': '1H'},
-                {'label': '4 Hours', 'value': '4H'},
-                {'label': '1 Day', 'value': '1D'}
-            ],
-            value='1H'
-        )
-    ]),
+        html.Div([
+            html.Label('Select Stock:', style={'fontWeight': 'bold'}),
+            dcc.Dropdown(
+                id='stock-selector',
+                options=[
+                    {'label': stock, 'value': stock} for stock in 
+                    ['AAPL', 'GOOGL', 'MSFT', 'AMZN', 'META', 'TSLA', 'NVDA', 'NFLX', 'AMD', 'INTC']
+                ],
+                value='AAPL',
+                style={'width': '200px'}
+            )
+        ], style={'marginRight': '20px'}),
+        
+        html.Div([
+            html.Label('Select Time Range:', style={'fontWeight': 'bold'}),
+            dcc.RadioItems(
+                id='time-range',
+                options=[
+                    {'label': '1 Hour', 'value': '1H'},
+                    {'label': '4 Hours', 'value': '4H'},
+                    {'label': '1 Day', 'value': '1D'}
+                ],
+                value='1H',
+                style={'display': 'flex', 'gap': '10px'}
+            )
+        ])
+    ], style={'display': 'flex', 'padding': '20px', 'backgroundColor': '#FFFFFF', 'borderRadius': '5px', 'marginBottom': '20px'}),
     
-    # Graphs
-    html.Div([
-        dcc.Graph(id='price-graph'),
-        dcc.Graph(id='volume-graph'),
-        dcc.Graph(id='change-graph')
-    ]),
+    # Loading spinner for graphs
+    dcc.Loading(
+        id="loading-graphs",
+        type="default",
+        children=[
+            # Graphs
+            html.Div([
+                dcc.Graph(id='price-graph'),
+                dcc.Graph(id='volume-graph'),
+                dcc.Graph(id='change-graph')
+            ], style={'padding': '20px'})
+        ]
+    ),
     
     # Auto-refresh interval
     dcc.Interval(
@@ -94,7 +120,44 @@ app.layout = html.Div([
         interval=60*1000,  # refresh every minute
         n_intervals=0
     )
-])
+], style={'backgroundColor': COLORS['background'], 'minHeight': '100vh'})
+
+def create_figure(df, x, y, title, type='scatter', color=COLORS['primary']):
+    fig = go.Figure()
+    
+    if type == 'scatter':
+        fig.add_trace(go.Scatter(
+            x=df[x],
+            y=df[y],
+            mode='lines',
+            line=dict(color=color, width=2),
+            name=y
+        ))
+    elif type == 'bar':
+        fig.add_trace(go.Bar(
+            x=df[x],
+            y=df[y],
+            marker_color=color,
+            name=y
+        ))
+        
+    fig.update_layout(
+        title=title,
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(0,0,0,0)',
+        xaxis=dict(
+            title='Time',
+            gridcolor='#EEEEEE',
+            showgrid=True
+        ),
+        yaxis=dict(
+            gridcolor='#EEEEEE',
+            showgrid=True
+        ),
+        margin=dict(l=40, r=40, t=40, b=40)
+    )
+    
+    return fig
 
 @app.callback(
     [Output('connection-status', 'children'),
@@ -107,7 +170,7 @@ app.layout = html.Div([
 )
 def update_graphs(selected_stock, time_range, n):
     if engine is None:
-        return "Database connection failed!", {}, {}, {}
+        return html.Div("Database connection failed!", style={'color': COLORS['danger']}), {}, {}, {}
         
     try:
         # Calculate time range
@@ -134,57 +197,24 @@ def update_graphs(selected_stock, time_range, n):
         )
         
         if df.empty:
-            return f"No data available for {selected_stock}", {}, {}, {}
+            return html.Div(f"No data available for {selected_stock}", 
+                          style={'color': COLORS['danger']}), {}, {}, {}
         
-        # Create price figure
-        price_fig = go.Figure()
-        price_fig.add_trace(go.Scatter(
-            x=df['timestamp'],
-            y=df['avg_price'],
-            mode='lines',
-            name='Price'
-        ))
-        price_fig.update_layout(
-            title=f'{selected_stock} Price',
-            xaxis_title='Time',
-            yaxis_title='Price ($)'
-        )
+        # Create figures
+        price_fig = create_figure(df, 'timestamp', 'avg_price', 
+                                f'{selected_stock} Price', color=COLORS['primary'])
+        volume_fig = create_figure(df, 'timestamp', 'avg_volume', 
+                                 f'{selected_stock} Volume', type='bar', color=COLORS['success'])
+        change_fig = create_figure(df, 'timestamp', 'avg_change', 
+                                 f'{selected_stock} Price Change %', color=COLORS['primary'])
         
-        # Create volume figure
-        volume_fig = go.Figure()
-        volume_fig.add_trace(go.Bar(
-            x=df['timestamp'],
-            y=df['avg_volume'],
-            name='Volume'
-        ))
-        volume_fig.update_layout(
-            title=f'{selected_stock} Volume',
-            xaxis_title='Time',
-            yaxis_title='Volume'
-        )
-        
-        # Create change percent figure
-        change_fig = go.Figure()
-        change_fig.add_trace(go.Scatter(
-            x=df['timestamp'],
-            y=df['avg_change'],
-            mode='lines',
-            name='Change %',
-            line=dict(
-                color='green',
-                width=2
-            )
-        ))
-        change_fig.update_layout(
-            title=f'{selected_stock} Price Change %',
-            xaxis_title='Time',
-            yaxis_title='Change %'
-        )
-        
-        return f"Connected to database, showing data for {selected_stock}", price_fig, volume_fig, change_fig
+        return html.Div(f"Connected to database, showing data for {selected_stock}", 
+                       style={'color': COLORS['success']}), price_fig, volume_fig, change_fig
+                       
     except Exception as e:
         print(f"Error updating graphs: {str(e)}")
-        return f"Error: {str(e)}", {}, {}, {}
+        return html.Div(f"Error: {str(e)}", 
+                       style={'color': COLORS['danger']}), {}, {}, {}
 
 if __name__ == '__main__':
     app.run_server(host='0.0.0.0', port=8050, debug=True) 
