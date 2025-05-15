@@ -22,6 +22,8 @@ COPY dashboard/app.py .
 ENV PYTHONUNBUFFERED=1
 ENV FLASK_ENV=production
 ENV DASH_DEBUG=false
+ENV FLASK_APP=app.py
+ENV GUNICORN_CMD_ARGS="--workers=2 --threads=2 --bind=0.0.0.0:8050 --timeout=120"
 
 # Expose the port the app runs on
 EXPOSE 8050

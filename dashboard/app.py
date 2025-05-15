@@ -13,8 +13,33 @@ from sqlalchemy.exc import OperationalError
 app = dash.Dash(__name__, 
     external_stylesheets=[
         'https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500&display=swap'
+    ],
+    serve_locally=True,
+    meta_tags=[
+        {"name": "viewport", "content": "width=device-width, initial-scale=1"}
     ]
 )
+
+# Enable the app to be embedded in an iframe
+app.index_string = '''
+<!DOCTYPE html>
+<html>
+    <head>
+        {%metas%}
+        <title>{%title%}</title>
+        {%favicon%}
+        {%css%}
+    </head>
+    <body>
+        {%app_entry%}
+        <footer>
+            {%config%}
+            {%scripts%}
+            {%renderer%}
+        </footer>
+    </body>
+</html>
+'''
 
 # Get database connection details from environment variables
 DB_USER = os.getenv('POSTGRES_USER', 'airflow')
@@ -220,7 +245,8 @@ if __name__ == '__main__':
     app.run_server(
         host='0.0.0.0',
         port=8050,
-        debug=True,
+        debug=False,  # Disable debug mode in production
         use_reloader=False,
-        dev_tools_hot_reload=False
+        dev_tools_hot_reload=False,
+        proxy=None  # Disable proxy settings
     ) 
