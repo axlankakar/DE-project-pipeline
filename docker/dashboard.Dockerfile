@@ -18,6 +18,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy dashboard application
 COPY dashboard/app.py .
 
+# Set environment variables
+ENV PYTHONUNBUFFERED=1
+ENV FLASK_ENV=production
+ENV DASH_DEBUG=false
+
 # Expose the port the app runs on
 EXPOSE 8050
 
