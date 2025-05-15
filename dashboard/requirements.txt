@@ -14,7 +14,8 @@ SQLAlchemy==1.4.49
 
 # Server
 gunicorn==21.2.0
-Flask==2.0.1
+Flask==2.2.5
+Werkzeug==2.2.3
 
 # Utilities
 python-dotenv==1.0.0 
